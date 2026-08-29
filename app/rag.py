@@ -12,7 +12,7 @@ CHUNK_SIZE = 140
 CHUNK_OVERLAP = 25
 CHAPTER_PATTERN = re.compile(r"^BAB\s+\d+\.\s+(.+)$", re.IGNORECASE)
 SECTION_PATTERN = re.compile(r"^\d+\.\d+\s+(.+)$")
-QUERY_ALIASES = {"hp": "handphone", "pc": "komputer", "benerin": "perbaikan", "benarin": "perbaikan", "servis": "service", "nggak": "tidak", "nggk": "tidak", "gak": "tidak"}
+QUERY_ALIASES = {"hp": "handphone", "pc": "komputer", "benerin": "perbaikan", "benarin": "perbaikan", "servis": "service", "harga": "biaya", "tarif": "biaya", "nggak": "tidak", "nggk": "tidak", "gak": "tidak"}
 STOP_WORDS = {"ada", "apakah", "bisa", "dan", "dengan", "ini", "itu", "kalau", "saya", "tidak", "untuk", "yang"}
 
 
@@ -85,12 +85,30 @@ def retrieve(question: str, limit: int = 3) -> list[dict]:
     query_embedding = model.encode(normalized_question, normalize_embeddings=True)
     semantic_scores = embeddings @ query_embedding
     query_keywords = keywords(normalized_question)
-    ranked = sorted(
-        enumerate(semantic_scores),
-        key=lambda item: float(item[1]) + 0.35 * len(query_keywords & keywords(f"{documents[item[0]]['title']} {documents[item[0]]['text']}")) / max(len(query_keywords), 1),
-        reverse=True,
-    )[:limit]
-    return [{**documents[index], "score": round(float(score), 3)} for index, score in ranked]
+    ranked = []
+    for index, semantic_score in enumerate(semantic_scores):
+        lexical_score = len(query_keywords & keywords(f"{documents[index]['title']} {documents[index]['text']}")) / max(len(query_keywords), 1)
+        ranked.append((index, float(semantic_score), lexical_score))
+    ranked.sort(key=lambda item: item[1] + 0.35 * item[2], reverse=True)
+    return [{**documents[index], "semantic_score": round(semantic_score, 3), "lexical_score": round(lexical_score, 3), "score": round(semantic_score + 0.35 * lexical_score, 3)} for index, semantic_score, lexical_score in ranked[:limit]]
+
+
+def similarity_threshold() -> float:
+    value = os.getenv("SIMILARITY_THRESHOLD")
+    if value is None:
+        raise RuntimeError("SIMILARITY_THRESHOLD must be set from RAG calibration")
+    try:
+        threshold = float(value)
+    except ValueError as error:
+        raise RuntimeError("SIMILARITY_THRESHOLD must be a number") from error
+    if threshold <= 0:
+        raise RuntimeError("SIMILARITY_THRESHOLD must be greater than zero")
+    return threshold
+
+
+def retrieve_relevant(question: str, limit: int = 2) -> list[dict]:
+    threshold = similarity_threshold()
+    return [match for match in retrieve(question, limit=limit) if match["score"] >= threshold]
 
 
 def context_from(matches: list[dict]) -> str:

@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-from app.rag import context_from, load_retriever, retrieve
+from app.rag import context_from, load_retriever, retrieve_relevant, similarity_threshold
 
 load_dotenv()
 REQUESTS: dict[str, deque[float]] = defaultdict(deque)
@@ -28,6 +28,7 @@ REASONING_MARKERS = ("the user is asking", "let me check", "looking at the conte
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    similarity_threshold()
     load_retriever()
     yield
 
@@ -78,6 +79,10 @@ def unavailable_answer(mode: str) -> str:
     if mode == "unavailable-busy":
         return "Maaf, asisten sedang ramai. Untuk bantuan cepat, silakan hubungi admin UTC."
     return "Maaf, asisten sementara tidak tersedia. Silakan hubungi admin UTC untuk bantuan lebih lanjut."
+
+
+def no_match_answer() -> str:
+    return "Maaf, saya belum memiliki informasi yang cukup untuk pertanyaan tersebut. Silakan hubungi admin UTC untuk bantuan lebih lanjut."
 
 
 def system_instruction(context: str) -> str:
@@ -184,7 +189,9 @@ def health():
 def chat(payload: ChatRequest, request: Request):
     allow_request(request)
     retrieval_query = " ".join([turn.message for turn in payload.history if turn.role == "user"][-1:] + [payload.message])
-    matches = retrieve(retrieval_query, limit=2)
+    matches = retrieve_relevant(retrieval_query)
+    if not matches:
+        return ChatResponse(answer=no_match_answer(), sources=[], mode="not-found", contact_admin=True)
     answer, mode = generate_answer(payload.message, context_from(matches), payload.history)
     return ChatResponse(
         answer=answer or unavailable_answer(mode),

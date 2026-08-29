@@ -9,14 +9,14 @@ Web portfolio Retrieval-Augmented Generation (RAG) untuk UNIDA Technology Care (
 - Ekstraksi Master PDF, chunking berbasis Bab/Subbab, dan embedding multilingual menggunakan Sentence Transformers.
 - Semantic retrieval dengan metadata Bab, Subbab, dan halaman sumber.
 - Provider chain: NVIDIA Build, Gemini 3.6 Flash, lalu OpenRouter Free Router.
-- Fallback retrieval ketika semua provider tidak tersedia.
+- Jika semua provider tidak tersedia, chatbot jujur mengarahkan pelanggan ke admin UTC.
 - Riwayat percakapan sementara: empat pesan terakhir hanya disimpan di memori halaman dan hilang saat halaman dimuat ulang.
 
 ## Tech Stack
 
 - Python, FastAPI, Uvicorn
 - Sentence Transformers
-- Gemini Developer API
+- NVIDIA Build, Gemini Developer API, OpenRouter
 - pypdf, ReportLab
 - HTML, CSS, JavaScript
 - Docker Compose
@@ -27,6 +27,8 @@ Web portfolio Retrieval-Augmented Generation (RAG) untuk UNIDA Technology Care (
 app/                     FastAPI application and retrieval logic
 data/UTC-Master-Knowledge-Base.pdf Curated public knowledge source
 scripts/build_master_pdf.py PDF generation script
+notebooks/rag_evaluation.ipynb RAG calibration notebook
+nginx/example.com.conf    Global Nginx reverse-proxy template
 static/                  Frontend files
 server.py                Local and container entry point
 Dockerfile               Container image definition
@@ -37,7 +39,7 @@ docker-compose.yml       Container orchestration
 
 - Python 3.11+
 - Docker and Docker Compose (only for container deployment)
-- Gemini API key (optional for local retrieval demo)
+- At least one LLM provider API key for generated answers
 
 ## Local Development
 
@@ -94,7 +96,7 @@ docker compose down
 { "message": "Apakah UTC menerima servis printer?" }
 ```
 
-The response contains the answer, retrieved source titles, and the active mode: `gemini` or `retrieval-demo`.
+The response contains the answer, retrieved source titles, the active mode (`nvidia`, `gemini`, `openrouter`, `unavailable`, or `unavailable-busy`), and `contact_admin` when the UI should offer WhatsApp support.
 
 ## Knowledge Base
 
@@ -107,6 +109,36 @@ uv run python scripts/build_master_pdf.py
 ```
 
 Do not include staff schedules, personal data, financial records, or internal operational details. Customer-facing operating information must be confirmed with UTC before publication.
+
+## RAG Architecture
+
+```mermaid
+flowchart LR
+    User[Customer browser] --> Nginx[global-nginx TLS reverse proxy]
+    Nginx --> App[utc-app FastAPI and static frontend]
+    App --> PDF[UTC Master Knowledge Base PDF]
+    PDF --> Chunking[Heading-aware chunking]
+    Chunking --> Embedding[Multilingual embeddings]
+    Embedding --> Ranking[Hybrid semantic and lexical ranking]
+    Ranking --> Threshold{Similarity threshold >= 0.35?}
+    Threshold -->|Yes| NVIDIA[NVIDIA Build primary]
+    NVIDIA -->|Unavailable| Gemini[Gemini fallback]
+    Gemini -->|Unavailable| OpenRouter[OpenRouter fallback]
+    Threshold -->|No| Admin[WhatsApp admin handoff]
+    OpenRouter -->|Unavailable| Admin
+```
+
+The app keeps only the four most recent messages in browser memory. It retrieves two chunks, rejects results below `SIMILARITY_THRESHOLD`, and caps model output at 256 tokens.
+
+## RAG Evaluation
+
+`notebooks/rag_evaluation.ipynb` evaluates nine supported questions and three unsupported questions. It reports Recall@2, MRR, and rejection accuracy across candidate thresholds, then prints the selected value for `.env`.
+
+```powershell
+uv run --with jupyter jupyter lab notebooks/rag_evaluation.ipynb
+```
+
+The current calibrated threshold is `0.35`: it preserves all supported evaluation cases while rejecting all unsupported cases in the bundled dataset. Set the notebook result as `SIMILARITY_THRESHOLD` in `.env`; the app fails at startup when that value is absent or invalid.
 
 Verify the PDF retrieval after changing the source:
 
