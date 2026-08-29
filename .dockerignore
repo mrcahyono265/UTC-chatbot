@@ -1,0 +1,10 @@
+.git
+.venv
+.env
+.playwright-mcp
+__pycache__
+*.pyc
+*.png
+docs
+data/*
+!data/knowledge-base.json

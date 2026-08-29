@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+.env
+*.pyc
+.playwright-mcp/
+*.png
+data/**
+!data/UTC-Master-Knowledge-Base.pdf

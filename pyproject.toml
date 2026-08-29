@@ -1,0 +1,17 @@
+[project]
+name = "utc-rag-portfolio"
+version = "0.1.0"
+description = "UTC RAG portfolio with FastAPI, semantic retrieval, and optional Gemini generation."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "google-genai>=1,<2",
+  "pypdf>=6.16.2",
+  "python-dotenv>=1,<2",
+  "reportlab>=5.0.1",
+  "sentence-transformers>=3,<6",
+  "uvicorn[standard]>=0.30,<1",
+]
+
+[tool.uv]
+package = false
