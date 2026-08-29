@@ -4,6 +4,14 @@ services:
     env_file: .env
     environment:
       HOST: 0.0.0.0
-    ports:
-      - "8080:8000"
+    expose:
+      - "8000"
+    networks:
+      proxy:
+        aliases:
+          - utc-app
     restart: unless-stopped
+
+networks:
+  proxy:
+    external: true

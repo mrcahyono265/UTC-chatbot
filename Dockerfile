@@ -11,7 +11,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 COPY app ./app
-COPY data/knowledge-base.json ./data/knowledge-base.json
+COPY data/UTC-Master-Knowledge-Base.pdf ./data/UTC-Master-Knowledge-Base.pdf
 COPY static ./static
 COPY server.py .
 

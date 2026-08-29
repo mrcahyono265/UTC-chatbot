@@ -60,13 +60,25 @@ Open `http://localhost:8000`. API documentation is available at `http://localhos
 
 ## Docker
 
-Create `.env` from the example and add your Gemini API key, then run:
+The UTC container joins the existing external Docker network named `proxy`. Ensure the global Nginx container is also connected to that network:
+
+```bash
+docker network inspect proxy
+```
+
+Create `.env` from the example and add your provider API keys. Deploy the container:
 
 ```bash
 docker compose up -d --build
 ```
 
-Open `http://localhost:8080`.
+Copy `nginx/example.com.conf` to `~/infra/reverse-proxy/conf.d/example.com.conf` on EC2, then reload the existing Nginx container:
+
+```bash
+docker exec global-nginx nginx -s reload
+```
+
+Open `http://example.com`. Replace `example.com` in the Nginx config and `.env` when the real domain is available. HTTPS remains managed by the existing global Nginx setup.
 
 Stop the containers:
 
